@@ -1,0 +1,14 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+data/
+.pytest_cache/
+*.egg-info/
+
+# Personal receipt data / notes - not meant for the public repo
+Costco_Receipts/
+sample/
+notes
+

@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Upload Purchase Records</h1>
+
+{% if error %}
+<p class="error-banner">{{ error }}</p>
+{% endif %}
+
+<div class="upload-form">
+  <p><strong>{{ total_item_count }}</strong> item(s) ingested so far, across every batch you've run.</p>
+  <p><a href="/export/all.xlsx">Export All Items (.xlsx)</a> - spans every batch, deduplicated by receipt file.</p>
+</div>
+
+<h2>Process a Folder on Disk</h2>
+<p class="muted">Point at a folder of receipts already saved locally (e.g. exported Costco PDFs) - every file in it
+  gets processed in place. Files already ingested in a previous batch are skipped automatically.</p>
+<form action="/ingest-folder" method="post" class="upload-form">
+  <label>
+    Ruleset
+    <select name="ruleset_name">
+      {% for r in rulesets %}
+      <option value="{{ r }}" {% if r == default_ruleset %}selected{% endif %}>{{ r }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>
+    Folder path (relative to the project, or absolute)
+    <input type="text" name="folder_path" value="{{ default_folder }}" required>
+  </label>
+  <button type="submit">Process Folder</button>
+</form>
+
+<h2>Or Upload Files</h2>
+<form action="/upload" method="post" enctype="multipart/form-data" class="upload-form">
+  <label>
+    Ruleset
+    <select name="ruleset_name">
+      {% for r in rulesets %}
+      <option value="{{ r }}" {% if r == default_ruleset %}selected{% endif %}>{{ r }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>
+    Files (CSV, XLSX, or PDF receipts)
+    <input type="file" name="files" multiple required accept=".csv,.xlsx,.xls,.pdf,.jpg,.jpeg,.png">
+  </label>
+  <button type="submit">Upload &amp; Process</button>
+</form>
+
+<h2>Recent Batches</h2>
+{% if recent_batches %}
+<table class="data-table">
+  <thead>
+    <tr><th>Batch</th><th>Ruleset</th><th>Status</th><th>Created</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for batch in recent_batches %}
+    <tr>
+      <td>#{{ batch.id }}</td>
+      <td>{{ batch.ruleset_name }}</td>
+      <td><span class="status status-{{ batch.status }}">{{ batch.status }}</span></td>
+      <td>{{ batch.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
+      <td>
+        <a href="/status/{{ batch.id }}">Status</a> ·
+        <a href="/review/{{ batch.id }}">Review</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No batches yet.</p>
+{% endif %}
+{% endblock %}

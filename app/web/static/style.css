@@ -1,0 +1,172 @@
+:root {
+  --bg: #f7f7f5;
+  --panel: #ffffff;
+  --border: #e2e0db;
+  --text: #2b2a27;
+  --muted: #7a776f;
+  --accent: #b5651d;
+  --ok: #3a7d44;
+  --warn: #b5651d;
+  --err: #b3261e;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.site-header {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.brand {
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: var(--text);
+  text-decoration: none;
+}
+
+main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+h1 { font-size: 1.4rem; margin-bottom: 1rem; }
+h2 { font-size: 1.1rem; margin-top: 2rem; color: var(--muted); }
+
+.upload-form {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 500px;
+}
+
+.upload-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+select, input[type="file"], input[type="number"] {
+  padding: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.9rem;
+  background: var(--panel);
+  color: var(--text);
+}
+
+button {
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+button:hover { opacity: 0.9; }
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.data-table th, .data-table td {
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.data-table th {
+  background: #f0efea;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.table-scroll { overflow-x: auto; }
+
+.review-table td.description-cell {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pct-input { width: 4.5rem; }
+
+.uid-cell {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.status {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.status-complete, .status-auto_ok, .status-reviewed_confirmed, .status-reviewed_overridden, .status-done {
+  background: #e4f0e6; color: var(--ok);
+}
+
+.status-processing, .status-pending, .status-needs_review {
+  background: #fbeadb; color: var(--warn);
+}
+
+.status-error {
+  background: #fbe4e2; color: var(--err);
+}
+
+.status-skipped_duplicate {
+  background: #ece9e3; color: var(--muted);
+}
+
+.error-banner {
+  background: #fbe4e2;
+  color: var(--err);
+  border: 1px solid #f0b8b3;
+  border-radius: 6px;
+  padding: 0.6rem 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.file-list { list-style: none; padding: 0; }
+.file-list li { padding: 0.25rem 0; border-bottom: 1px dashed var(--border); }
+
+.error-text { color: var(--err); }
+.muted { color: var(--muted); }
+
+.review-nav a {
+  color: var(--text);
+  text-decoration: none;
+  margin-right: 0.25rem;
+}
+
+.review-nav a.active { font-weight: 700; color: var(--accent); }
+
+.actions button { margin-right: 0.35rem; margin-bottom: 0.25rem; }

@@ -1,0 +1,25 @@
+<tr id="item-row-{{ item.id }}">
+  <td class="uid-cell">{{ item.item_uid or "" }}</td>
+  <td>{{ item.date or "" }}</td>
+  <td>{{ item.vendor or "" }}</td>
+  <td class="description-cell" title="{{ item.rationale or '' }}">{{ item.description or "" }}</td>
+  <td>{{ item.quantity or 1 }}</td>
+  <td>{{ "%.2f"|format(item.amount) if item.amount is not none else "" }}</td>
+  <td>
+    <select name="category_id">
+      {% for cat in categories %}
+      <option value="{{ cat.id }}" {% if cat.id == item.category %}selected{% endif %}>{{ cat.label }}</option>
+      {% endfor %}
+    </select>
+  </td>
+  <td><input type="checkbox" name="deductible" value="true" {% if item.deductible %}checked{% endif %}></td>
+  <td><input type="number" step="0.05" min="0" max="1" name="deduction_pct" value="{{ item.deduction_pct if item.deduction_pct is not none else 0 }}" class="pct-input"></td>
+  <td>{{ item.categorization_method or "" }}</td>
+  <td><span class="status status-{{ item.review_status }}">{{ item.review_status }}</span></td>
+  <td class="actions">
+    <button hx-post="/review/item/{{ item.id }}/override" hx-include="closest tr" hx-target="closest tr" hx-swap="outerHTML">Save</button>
+    {% if item.review_status == "needs_review" %}
+    <button hx-post="/review/item/{{ item.id }}/confirm" hx-target="closest tr" hx-swap="outerHTML">Confirm as-is</button>
+    {% endif %}
+  </td>
+</tr>

@@ -1,0 +1,96 @@
+name: "US Self-Employed (Schedule C)"
+filer_type: self_employed
+categories:
+  # personal_nondeductible is checked first (first-match-wins) so well-known personal
+  # vendors (streaming, groceries, etc.) short-circuit before generic keywords in later
+  # categories - e.g. "subscription" in a description shouldn't let Netflix match Software.
+  - id: personal_nondeductible
+    label: "Personal (Not Deductible)"
+    deductible: false
+    deduction_pct: 0.0
+    match:
+      vendor_keywords: ["netflix", "spotify", "amc theatres", "regal cinemas"]
+      description_keywords: ["personal", "groceries", "gym membership"]
+
+  - id: office_supplies
+    label: "Office Supplies"
+    schedule_line: "Schedule C Line 22"
+    deductible: true
+    deduction_pct: 1.0
+    match:
+      vendor_keywords: ["staples", "office depot", "officemax"]
+      description_keywords: ["paper", "pens", "printer ink", "toner", "notebook", "folders"]
+
+  - id: software_subscriptions
+    label: "Software & Subscriptions"
+    schedule_line: "Schedule C Line 27a"
+    deductible: true
+    deduction_pct: 1.0
+    match:
+      vendor_keywords: ["adobe", "microsoft", "github", "notion", "zoom", "slack", "dropbox", "aws", "google cloud", "openai", "anthropic"]
+      description_keywords: ["saas", "software license", "software subscription"]
+
+  - id: meals_50pct
+    label: "Business Meals (50% limited)"
+    schedule_line: "Schedule C Line 24b"
+    deductible: true
+    deduction_pct: 0.5
+    match:
+      vendor_keywords: ["restaurant", "starbucks", "doordash", "grubhub", "uber eats", "cafe", "diner", "bistro"]
+      description_keywords: ["lunch", "dinner", "breakfast", "meal", "coffee with client"]
+
+  - id: travel
+    label: "Business Travel"
+    schedule_line: "Schedule C Line 24a"
+    deductible: true
+    deduction_pct: 1.0
+    match:
+      vendor_keywords: ["delta", "united airlines", "american airlines", "marriott", "hilton", "airbnb", "hertz", "avis", "uber", "lyft"]
+      description_keywords: ["flight", "hotel", "rental car", "airfare", "lodging"]
+
+  - id: advertising
+    label: "Advertising & Marketing"
+    schedule_line: "Schedule C Line 8"
+    deductible: true
+    deduction_pct: 1.0
+    match:
+      vendor_keywords: ["facebook ads", "meta ads", "google ads", "linkedin ads", "mailchimp"]
+      description_keywords: ["advertising", "marketing campaign", "sponsored post"]
+
+  - id: professional_services
+    label: "Legal & Professional Services"
+    schedule_line: "Schedule C Line 17"
+    deductible: true
+    deduction_pct: 1.0
+    match:
+      vendor_keywords: ["law office", "law firm", "cpa", "accountant", "bookkeeping"]
+      description_keywords: ["legal fees", "accounting fees", "consulting fee"]
+
+  - id: vehicle_fuel
+    label: "Vehicle Fuel (Business Use)"
+    schedule_line: "Schedule C Line 9"
+    deductible: true
+    deduction_pct: 1.0
+    match:
+      vendor_keywords: ["costco gas", "shell", "chevron", "exxon", "76 gas"]
+      description_keywords: ["regular", "premium", "diesel", "unleaded", "supreme", "fuel"]
+
+  - id: home_office
+    label: "Home Office"
+    schedule_line: "Form 8829"
+    deductible: true
+    deduction_pct: null
+    requires_manual_review: true
+    match:
+      vendor_keywords: []
+      description_keywords: ["home office"]
+
+fallback:
+  claude_context: |
+    You are helping a self-employed individual (Schedule C filer) categorize a business
+    expense for US federal tax purposes. Only mark an item deductible if it is an
+    ordinary and necessary business expense under IRC Section 162. Personal expenses,
+    even if incidentally useful for work, are not deductible. Business meals are limited
+    to 50% deductible. If the item is genuinely ambiguous (e.g. could be personal or
+    business use, like a phone bill or home office cost that depends on percentage of
+    business use), set needs_human_review to true rather than guessing.

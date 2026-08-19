@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Review — Batch #{{ batch.id }}</h1>
+<p class="review-nav">
+  <a href="/review/{{ batch.id }}?filter=all" class="{% if filter == 'all' %}active{% endif %}">All</a>
+  ·
+  <a href="/review/{{ batch.id }}?filter=needs_review" class="{% if filter == 'needs_review' %}active{% endif %}">Needs Review</a>
+  ·
+  <a href="/export/{{ batch.id }}.xlsx">Export Spreadsheet (.xlsx)</a>
+  ·
+  <a href="/export/{{ batch.id }}.csv">Export Raw CSV</a>
+</p>
+<p>Estimated deductible total (current state): <strong>${{ "%.2f"|format(deductible_total) }}</strong></p>
+
+{% if items %}
+<div class="table-scroll">
+<table class="data-table review-table">
+  <thead>
+    <tr>
+      <th>ID</th><th>Date</th><th>Vendor</th><th>Description</th><th>Qty</th><th>Amount</th>
+      <th>Category</th><th>Ded.</th><th>Ded %</th><th>Method</th><th>Status</th><th>Actions</th>
+    </tr>
+  </thead>
+  <tbody id="review-rows">
+    {% for item in items %}
+      {% include "partials/review_row.html" %}
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p class="muted">No line items match this filter.</p>
+{% endif %}
+{% endblock %}

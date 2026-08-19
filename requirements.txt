@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+jinja2
+python-multipart
+sqlmodel
+pandas
+openpyxl
+pdfplumber
+pymupdf
+pytesseract
+pillow
+anthropic
+python-dotenv
+pydantic
+pydantic-settings
+python-dateutil
+PyYAML
