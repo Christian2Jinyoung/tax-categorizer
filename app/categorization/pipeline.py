@@ -65,6 +65,12 @@ def categorize_as_gas_purchase(item: LineItem, ruleset: Ruleset) -> None:
     """
     category = ruleset.find_category("vehicle_fuel")
 
+    # The parsed description is just the fuel grade off the receipt (e.g. "Regular"),
+    # which doesn't read as a gas purchase anywhere in the export - relabel it so it's
+    # findable/recognizable. The original grade is preserved in raw_text/abbreviated_description.
+    grade = (item.description or "").strip()
+    item.description = f"Costco Gas Station Fuel ({grade})" if grade else "Costco Gas Station Fuel"
+
     item.category = category.id if category else "vehicle_fuel"
     item.category_label = category.label if category else "Vehicle Fuel (Business Use)"
     item.deductible = True

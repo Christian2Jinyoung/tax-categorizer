@@ -3,6 +3,8 @@ import io
 import pandas as pd
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
+from openpyxl.formatting.rule import FormulaRule
+from openpyxl.styles import PatternFill
 from openpyxl.utils import get_column_letter
 from sqlmodel import select
 
@@ -20,10 +22,18 @@ COLUMN_NUMBER_FORMATS = {
 }
 MAX_COLUMN_WIDTH = 60
 
+# Excel's built-in "Good"/"Bad" cell-style colors, for the manual Deductible column.
+GREEN_FILL = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+RED_FILL = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+
 
 def _write_sheet(writer, df: pd.DataFrame, sheet_name: str) -> None:
     """Writes df to the workbook, then widens every column to fit its content and
     applies currency/date/percent formatting to columns named in COLUMN_NUMBER_FORMATS.
+
+    If the sheet has a "Deductible" column, also adds live conditional formatting so
+    typing "y" or "x" into that column colors the whole row green/red in Excel itself -
+    no re-export needed to see the color change.
     """
     df.to_excel(writer, sheet_name=sheet_name, index=False)
     worksheet = writer.sheets[sheet_name]
@@ -38,6 +48,17 @@ def _write_sheet(writer, df: pd.DataFrame, sheet_name: str) -> None:
         if number_format:
             for row_idx in range(2, len(df) + 2):  # row 1 is the header
                 worksheet.cell(row=row_idx, column=col_idx).number_format = number_format
+
+    if "Deductible" in df.columns and len(df):
+        deductible_col_letter = get_column_letter(df.columns.get_loc("Deductible") + 1)
+        last_col_letter = get_column_letter(len(df.columns))
+        cell_range = f"A2:{last_col_letter}{len(df) + 1}"
+        worksheet.conditional_formatting.add(
+            cell_range, FormulaRule(formula=[f'LOWER(${deductible_col_letter}2)="y"'], fill=GREEN_FILL)
+        )
+        worksheet.conditional_formatting.add(
+            cell_range, FormulaRule(formula=[f'LOWER(${deductible_col_letter}2)="x"'], fill=RED_FILL)
+        )
 
 # Every export is also written here as a standing copy on disk, in addition to the
 # browser download - contains real purchase data, so it's gitignored (see .gitignore).
@@ -101,13 +122,18 @@ def export_csv(batch_id: int):
 # The primary sheet for manual review: every real line item, regardless of what (if
 # anything) the categorizer decided about deductibility - the point is the user checks
 # each one themselves rather than trusting an auto-generated Deductible/Not-Deductible split.
+# "Deductible" is the leftmost column and always blank on export - the user fills in
+# "y" (deductible) or "x" (not deductible) per row, which live-colors the row via
+# conditional formatting (see _write_sheet).
 ALL_ITEMS_COLUMNS = [
-    "Item UID", "Date", "Full Name", "Abbreviated Name (Receipt)", "Quantity", "Price", "Source File",
+    "Deductible", "Item UID", "Date", "Full Name", "Abbreviated Name (Receipt)", "Quantity", "Price",
+    "Source File",
 ]
 
 
 def _all_items_row(item: LineItem, source_filenames: dict[int, str]) -> dict:
     return {
+        "Deductible": None,
         "Item UID": item.item_uid,
         "Date": item.date,
         "Full Name": item.description,
