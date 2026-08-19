@@ -11,4 +11,6 @@ data/
 Costco_Receipts/
 sample/
 notes
+app/export/*.xlsx
+app/export/*.csv
 

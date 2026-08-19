@@ -3,12 +3,50 @@ import io
 import pandas as pd
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
+from openpyxl.utils import get_column_letter
 from sqlmodel import select
 
+from app.config import PROJECT_ROOT
 from app.db import get_session
 from app.models import LineItem, SourceFile, UploadBatch
 
 router = APIRouter()
+
+# Per-column Excel number formats, applied wherever a sheet has one of these headers.
+COLUMN_NUMBER_FORMATS = {
+    "Date": "mm/dd/yyyy",
+    "Price": '"$"#,##0.00',
+    "Deduction %": "0%",
+}
+MAX_COLUMN_WIDTH = 60
+
+
+def _write_sheet(writer, df: pd.DataFrame, sheet_name: str) -> None:
+    """Writes df to the workbook, then widens every column to fit its content and
+    applies currency/date/percent formatting to columns named in COLUMN_NUMBER_FORMATS.
+    """
+    df.to_excel(writer, sheet_name=sheet_name, index=False)
+    worksheet = writer.sheets[sheet_name]
+
+    for col_idx, column_name in enumerate(df.columns, start=1):
+        col_letter = get_column_letter(col_idx)
+        cell_lengths = [len(str(v)) for v in df[column_name]] if len(df) else []
+        width = max([len(str(column_name)), *cell_lengths]) + 2
+        worksheet.column_dimensions[col_letter].width = min(width, MAX_COLUMN_WIDTH)
+
+        number_format = COLUMN_NUMBER_FORMATS.get(column_name)
+        if number_format:
+            for row_idx in range(2, len(df) + 2):  # row 1 is the header
+                worksheet.cell(row=row_idx, column=col_idx).number_format = number_format
+
+# Every export is also written here as a standing copy on disk, in addition to the
+# browser download - contains real purchase data, so it's gitignored (see .gitignore).
+EXPORT_DIR = PROJECT_ROOT / "app" / "export"
+
+
+def _save_export_copy(buffer: io.BytesIO, filename: str) -> None:
+    EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+    (EXPORT_DIR / filename).write_bytes(buffer.getvalue())
 
 
 def _source_filenames(session, items: list[LineItem]) -> dict[int, str]:
@@ -131,24 +169,24 @@ def _build_workbook(items: list[LineItem], source_filenames: dict[int, str]) -> 
 
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        _all_items_sheet(all_items, source_filenames).to_excel(writer, sheet_name="All Items", index=False)
-        pd.DataFrame(
-            [
-                {"Metric": "Total line items", "Value": len(all_items)},
-                {"Metric": "Deductible line items (per agent)", "Value": len(deductible)},
-                {"Metric": "Non-deductible line items (per agent)", "Value": len(non_deductible)},
-                {"Metric": "Uncategorized / extraction issues", "Value": len(uncategorized)},
-                {"Metric": "Estimated deductible total (per agent)", "Value": round(deductible_total, 2)},
-            ]
-        ).to_excel(writer, sheet_name="Summary", index=False)
-        _spreadsheet_sheet(deductible, source_filenames).to_excel(writer, sheet_name="Tax Deductible", index=False)
-        _spreadsheet_sheet(non_deductible, source_filenames).to_excel(
-            writer, sheet_name="Not Deductible", index=False
+        _write_sheet(writer, _all_items_sheet(all_items, source_filenames), "All Items")
+        _write_sheet(
+            writer,
+            pd.DataFrame(
+                [
+                    {"Metric": "Total line items", "Value": len(all_items)},
+                    {"Metric": "Deductible line items (per agent)", "Value": len(deductible)},
+                    {"Metric": "Non-deductible line items (per agent)", "Value": len(non_deductible)},
+                    {"Metric": "Uncategorized / extraction issues", "Value": len(uncategorized)},
+                    {"Metric": "Estimated deductible total (per agent)", "Value": round(deductible_total, 2)},
+                ]
+            ),
+            "Summary",
         )
+        _write_sheet(writer, _spreadsheet_sheet(deductible, source_filenames), "Tax Deductible")
+        _write_sheet(writer, _spreadsheet_sheet(non_deductible, source_filenames), "Not Deductible")
         if uncategorized:
-            _spreadsheet_sheet(uncategorized, source_filenames).to_excel(
-                writer, sheet_name="Uncategorized", index=False
-            )
+            _write_sheet(writer, _spreadsheet_sheet(uncategorized, source_filenames), "Uncategorized")
     buffer.seek(0)
     return buffer
 
@@ -169,6 +207,7 @@ def export_all_xlsx():
         source_filenames = _source_filenames(session, items)
 
     buffer = _build_workbook(items, source_filenames)
+    _save_export_copy(buffer, "tax_categorizer_all_items.xlsx")
     return StreamingResponse(
         buffer,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -189,6 +228,7 @@ def export_xlsx(batch_id: int):
 
     buffer = _build_workbook(items, source_filenames)
     filename = f"tax_categorizer_batch_{batch_id}.xlsx"
+    _save_export_copy(buffer, filename)
     return StreamingResponse(
         buffer,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
