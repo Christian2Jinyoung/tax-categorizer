@@ -1,8 +1,12 @@
 import io
+from datetime import datetime
+from typing import Optional
+from urllib.parse import quote
 
+import openpyxl
 import pandas as pd
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi.responses import RedirectResponse, StreamingResponse
 from openpyxl.formatting.rule import FormulaRule
 from openpyxl.styles import PatternFill
 from openpyxl.utils import get_column_letter
@@ -11,6 +15,11 @@ from sqlmodel import select
 from app.config import PROJECT_ROOT
 from app.db import get_session
 from app.models import LineItem, SourceFile, UploadBatch
+
+# review_status values that mean a human has already made the deductible call - either
+# by clicking through /review or by importing a checked-off export (see import_checks
+# below) - as opposed to "auto_ok"/"needs_review", which are just the categorizer's guess.
+REVIEWED_STATUSES = ("reviewed_confirmed", "reviewed_overridden")
 
 router = APIRouter()
 
@@ -122,9 +131,11 @@ def export_csv(batch_id: int):
 # The primary sheet for manual review: every real line item, regardless of what (if
 # anything) the categorizer decided about deductibility - the point is the user checks
 # each one themselves rather than trusting an auto-generated Deductible/Not-Deductible split.
-# "Deductible" is the leftmost column and always blank on export - the user fills in
-# "y" (deductible) or "x" (not deductible) per row, which live-colors the row via
-# conditional formatting (see _write_sheet).
+# "Deductible" is the leftmost column - the user fills in "y" (deductible) or "x" (not
+# deductible) per row, which live-colors the row via conditional formatting (see
+# _write_sheet). It's blank only for rows nobody has reviewed yet; a row already
+# reviewed (via /review or a prior round-trip through import_checks below) is
+# pre-filled with its stored y/x so re-exporting never erases past review work.
 ALL_ITEMS_COLUMNS = [
     "Deductible", "Item UID", "Date", "Full Name", "Abbreviated Name (Receipt)", "Quantity", "Price",
     "Source File",
@@ -132,8 +143,9 @@ ALL_ITEMS_COLUMNS = [
 
 
 def _all_items_row(item: LineItem, source_filenames: dict[int, str]) -> dict:
+    reviewed = item.review_status in REVIEWED_STATUSES
     return {
-        "Deductible": None,
+        "Deductible": ("y" if item.deductible else "x") if reviewed else None,
         "Item UID": item.item_uid,
         "Date": item.date,
         "Full Name": item.description,
@@ -183,9 +195,10 @@ def _spreadsheet_sheet(items: list[LineItem], source_filenames: dict[int, str]) 
 def _build_workbook(items: list[LineItem], source_filenames: dict[int, str]) -> io.BytesIO:
     """The final spreadsheet. Leads with "All Items" - every real line item with its full
     resolved name, its original receipt abbreviation, quantity, price, date, and source
-    receipt file, with no deductible/not-deductible judgment baked in, for manual review.
-    The categorizer's own Tax Deductible / Not Deductible / Uncategorized split follows for
-    reference.
+    receipt file, for manual review; the categorizer's guess is never pre-filled here for
+    a row that hasn't been reviewed yet, only carried over for one that already has (see
+    _all_items_row). The categorizer's own Tax Deductible / Not Deductible / Uncategorized
+    split follows for reference.
     """
     all_items = [item for item in items if not (item.vendor is None and item.amount is None)]
     deductible = [item for item in items if item.deductible is True]
@@ -260,3 +273,73 @@ def export_xlsx(batch_id: int):
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+def _normalize_deductible_mark(value: object) -> Optional[bool]:
+    text = str(value).strip().lower() if value is not None else ""
+    if text in ("y", "yes"):
+        return True
+    if text in ("x", "n", "no"):
+        return False
+    return None  # blank, or an unrecognized value - treated as "not reviewed"
+
+
+@router.post("/export/import-checks")
+async def import_checks(file: UploadFile = File(...)):
+    """Reads back a previously exported "All Items" sheet that's had its Deductible
+    column hand-filled in with y/x, and persists those calls to the database (matched
+    by Item UID) so they survive future re-exports instead of only ever living in that
+    one Excel file - see _all_items_row, which now pre-fills already-reviewed rows
+    instead of always blanking the column.
+    """
+    contents = await file.read()
+    try:
+        workbook = openpyxl.load_workbook(io.BytesIO(contents), data_only=True)
+    except Exception as exc:  # noqa: BLE001 - surfaced to the user, not a crash
+        return RedirectResponse(url=f"/?error={quote(f'Could not read {file.filename}: {exc}')}", status_code=303)
+
+    if "All Items" not in workbook.sheetnames:
+        return RedirectResponse(
+            url=f"/?error={quote(f'{file.filename} has no \"All Items\" sheet')}", status_code=303
+        )
+
+    sheet = workbook["All Items"]
+    header = [cell.value for cell in next(sheet.iter_rows(min_row=1, max_row=1))]
+    if "Item UID" not in header or "Deductible" not in header:
+        return RedirectResponse(
+            url=f"/?error={quote('All Items sheet is missing the Item UID or Deductible column')}",
+            status_code=303,
+        )
+    uid_col = header.index("Item UID")
+    deductible_col = header.index("Deductible")
+
+    marks: dict[str, bool] = {}
+    for row in sheet.iter_rows(min_row=2, values_only=True):
+        uid = row[uid_col] if uid_col < len(row) else None
+        mark = _normalize_deductible_mark(row[deductible_col] if deductible_col < len(row) else None)
+        if uid and mark is not None:
+            marks[str(uid)] = mark
+
+    updated = 0
+    not_found = 0
+    with get_session() as session:
+        for uid, is_deductible in marks.items():
+            item = session.exec(select(LineItem).where(LineItem.item_uid == uid)).first()
+            if item is None:
+                not_found += 1
+                continue
+            item.deductible = is_deductible
+            if is_deductible and not item.deduction_pct:
+                item.deduction_pct = 1.0
+            item.categorization_method = item.categorization_method or "manual_override"
+            item.review_status = "reviewed_overridden"
+            item.reviewed_at = datetime.utcnow()
+            item.updated_at = datetime.utcnow()
+            session.add(item)
+            updated += 1
+        session.commit()
+
+    message = f"Imported {updated} checked row(s) from {file.filename}."
+    if not_found:
+        message += f" {not_found} Item UID(s) from the file weren't found (skipped)."
+    return RedirectResponse(url=f"/?message={quote(message)}", status_code=303)

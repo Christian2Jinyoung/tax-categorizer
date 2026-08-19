@@ -5,11 +5,25 @@
 {% if error %}
 <p class="error-banner">{{ error }}</p>
 {% endif %}
+{% if message %}
+<p class="message-banner">{{ message }}</p>
+{% endif %}
 
 <div class="upload-form">
   <p><strong>{{ total_item_count }}</strong> item(s) ingested so far, across every batch you've run.</p>
   <p><a href="/export/all.xlsx">Export All Items (.xlsx)</a> - spans every batch, deduplicated by receipt file.</p>
 </div>
+
+<h2>Import a Checked Sheet</h2>
+<p class="muted">Already marked "y"/"x" in the Deductible column of an exported All Items sheet? Upload it here
+  to save those calls permanently - matched by Item UID, so re-exporting afterward won't blank them out again.</p>
+<form action="/export/import-checks" method="post" enctype="multipart/form-data" class="upload-form">
+  <label>
+    Checked "All Items" export (.xlsx)
+    <input type="file" name="file" required accept=".xlsx">
+  </label>
+  <button type="submit">Import Checks</button>
+</form>
 
 <h2>Process a Folder on Disk</h2>
 <p class="muted">Point at a folder of receipts already saved locally (e.g. exported Costco PDFs) - every file in it

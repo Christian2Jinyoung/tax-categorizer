@@ -29,9 +29,11 @@ rule-based categorization engine, a Claude categorization fallback that can look
 cryptic receipt codes via web search to identify the real product before deciding
 (see below), a filename-based override for Costco gas-station receipts (see below),
 and the FastAPI + HTMX web dashboard: upload files or point at a folder on disk,
-background processing with duplicate-file detection, a review/override table, and a
-final spreadsheet export split into Tax Deductible / Not Deductible sheets. Not yet
-built: scanned-PDF/image OCR and a second ruleset (e.g. Schedule A).
+background processing with duplicate-file detection, a review/override table, a
+final spreadsheet export split into Tax Deductible / Not Deductible sheets, and a
+checked-sheet import so hand-marked Deductible y/x calls persist to the database
+instead of being lost on the next export. Not yet built: scanned-PDF/image OCR and a
+second ruleset (e.g. Schedule A).
 
 ### How Claude decides, and when it asks you
 
@@ -81,6 +83,14 @@ report - a "Tax Deductible" sheet and a "Not Deductible" sheet (plus "Uncategori
 for anything that never got a verdict, e.g. an unreadable page), each with item,
 date, quantity, and cost, alongside the assigned category for reference. A raw CSV
 export is also available for scripting.
+
+The leading "All Items" sheet has a "Deductible" column you can hand-fill with "y"/"x"
+per row as you review. Those marks aren't captured automatically - export the sheet,
+mark it up in Excel, then use "Import a Checked Sheet" on the home page to upload it
+back; the app matches rows by Item UID and saves your y/x calls to the database. Every
+export after that pre-fills already-reviewed rows with their saved mark, so re-running
+ingestion or re-exporting never blanks out work you've already done - only rows you
+haven't reviewed yet come back blank.
 
 Image receipts (JPG/PNG) are accepted by the upload form but OCR isn't implemented
 yet, so they'll be reported as a per-file error rather than processed.

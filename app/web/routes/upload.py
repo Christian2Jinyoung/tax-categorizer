@@ -20,7 +20,7 @@ INGESTIBLE_EXTENSIONS = {".csv", ".xlsx", ".xls", ".pdf"}
 
 
 @router.get("/")
-def upload_form(request: Request, error: Optional[str] = None):
+def upload_form(request: Request, error: Optional[str] = None, message: Optional[str] = None):
     with get_session() as session:
         recent_batches = session.exec(
             select(UploadBatch).order_by(UploadBatch.created_at.desc()).limit(10)
@@ -38,6 +38,7 @@ def upload_form(request: Request, error: Optional[str] = None):
             "default_folder": "Costco_Receipts",
             "total_item_count": len(total_items),
             "error": error,
+            "message": message,
         },
     )
 
