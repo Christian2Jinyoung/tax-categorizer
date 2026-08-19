@@ -75,7 +75,11 @@ def categorize_with_claude(vendor: str | None, description: str | None, amount: 
     client = get_anthropic_client()
     response = client.messages.parse(
         model=settings.claude_model_categorize,
-        max_tokens=1024,
+        # 1024 was too tight once web_search actually fires: search queries + result
+        # blocks can eat most of the budget, leaving too little for the final JSON
+        # block and producing either no text block at all or a truncated one - both
+        # surfaced as "Categorization error" on the item instead of a real result.
+        max_tokens=4096,
         system=system_prompt,
         tools=[WEB_SEARCH_TOOL],
         messages=[{"role": "user", "content": user_message}],
@@ -83,5 +87,7 @@ def categorize_with_claude(vendor: str | None, description: str | None, amount: 
     )
     result = response.parsed_output
     if result is None:
-        raise RuntimeError("Claude did not return a parsed categorization result")
+        raise RuntimeError(
+            f"Claude did not return a parsed categorization result (stop_reason={response.stop_reason!r})"
+        )
     return result
